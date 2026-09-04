@@ -1,10 +1,18 @@
 import configparser
-import shutil
+import os
 
 import bcrypt
 import pytest
 
 from main import create_app
+
+# Use the vendored ffmpeg/ffprobe (same binaries production points at via
+# config.ini's FFMPEG_BIN/FFPROBE_BIN) instead of whatever ffmpeg happens to
+# be on the system PATH — the system ffmpeg on this host lacks a libx264
+# encoder, while the vendored build has it.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_VENDORED_FFMPEG = os.path.join(_REPO_ROOT, "vendor", "ffmpeg", "ffmpeg")
+_VENDORED_FFPROBE = os.path.join(_REPO_ROOT, "vendor", "ffmpeg", "ffprobe")
 
 
 def write_config(config_path, video_dir, thumbnail_dir, cache_dir, password="testpass"):
@@ -23,8 +31,8 @@ def write_config(config_path, video_dir, thumbnail_dir, cache_dir, password="tes
     config["Transcode"] = {
         "CACHE_DIR": str(cache_dir),
         "MAX_CACHE_GB": "1",
-        "FFMPEG_BIN": shutil.which("ffmpeg") or "ffmpeg",
-        "FFPROBE_BIN": shutil.which("ffprobe") or "ffprobe",
+        "FFMPEG_BIN": _VENDORED_FFMPEG,
+        "FFPROBE_BIN": _VENDORED_FFPROBE,
     }
     with open(config_path, "w") as f:
         config.write(f)

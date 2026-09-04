@@ -1,12 +1,17 @@
 import os
-import shutil
 import subprocess
 import time
 
 from transcode import TranscodeManager
 
-FFMPEG = shutil.which("ffmpeg") or "ffmpeg"
-FFPROBE = shutil.which("ffprobe") or "ffprobe"
+# Use the vendored ffmpeg/ffprobe (same binaries the app itself is
+# configured to use via config.ini's FFMPEG_BIN/FFPROBE_BIN), not whatever
+# ffmpeg happens to be on the system PATH. The system ffmpeg on this host is
+# a patent-restricted "free" build with no libx264 encoder; the vendored
+# build does have libx264, matching what production actually runs.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FFMPEG = os.path.join(_REPO_ROOT, "vendor", "ffmpeg", "ffmpeg")
+FFPROBE = os.path.join(_REPO_ROOT, "vendor", "ffmpeg", "ffprobe")
 
 
 def make_sample(tmp_path, filename="incompatible.avi"):

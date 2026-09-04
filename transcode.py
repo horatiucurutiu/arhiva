@@ -102,7 +102,7 @@ class TranscodeManager:
                 subprocess.run(
                     [
                         self.ffmpeg_bin, "-y", "-hwaccel", "auto", "-i", source_path,
-                        "-c:v", "libopenh264",
+                        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
                         "-c:a", "aac", "-movflags", "+faststart", "-f", "mp4", tmp_dest,
                     ],
                     check=True, capture_output=True, timeout=3600,
