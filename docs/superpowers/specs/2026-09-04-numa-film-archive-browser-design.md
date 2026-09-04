@@ -195,6 +195,23 @@ test harness is out of scope for v1):
 6. Confirm `https://arhiva.numafilm.ro` resolves, redirects HTTP→HTTPS,
    and the cert is valid.
 
+## Addendum: dedicated ffmpeg build (found during implementation planning)
+
+The system `ffmpeg` on this host (also used by the `casting`/`cotatii` apps)
+has HEVC/H.265 decoding entirely unavailable: no software decoder is
+compiled in, and `-hwaccel auto` can't help because there's no decoder to
+attach hardware acceleration to in the first place (verified directly —
+`ffmpeg -decoders | grep hevc` returns nothing, and attempting to decode an
+HEVC file fails with "no decoder found for: hevc"). ProRes decode works
+fine on the system build; only HEVC sources are affected.
+
+Rather than modify the shared system `ffmpeg`, this app vendors its own
+static build (BtbN's GPL Linux build, which includes full HEVC decode) at
+`vendor/ffmpeg/`, installed via `scripts/install_ffmpeg.sh` and referenced
+via `[Transcode] FFMPEG_BIN` / `FFPROBE_BIN` in `config.ini`. This keeps
+the system `ffmpeg` untouched for other apps while giving this app's
+transcode pipeline full format coverage.
+
 ## Open questions / follow-ups (not blocking v1)
 
 - If archive usage grows, may eventually want a proper multi-user login
