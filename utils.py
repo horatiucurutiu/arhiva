@@ -9,6 +9,15 @@ import logging
 logging.basicConfig(level=logging.CRITICAL)
 
 
+def safe_join(base_dir: str, *paths: str) -> str:
+    """Join paths under base_dir, raising ValueError if the result would escape base_dir."""
+    base_dir = os.path.realpath(base_dir)
+    target = os.path.realpath(os.path.join(base_dir, *paths))
+    if target != base_dir and not target.startswith(base_dir + os.sep):
+        raise ValueError(f"Path escapes base directory: {paths!r}")
+    return target
+
+
 def get_ip_addresses() -> List[str]:
     try:
         hostname = socket.gethostname()

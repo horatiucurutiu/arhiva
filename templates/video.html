@@ -44,9 +44,12 @@
         document.addEventListener('DOMContentLoaded', function() {
             const videoPlayer = document.getElementById('video-player');
             if (videoPlayer) {
-                const currentVideoPath = videoPlayer.querySelector('source').src;
-                const folderPath = currentVideoPath.split('/').slice(0, -1).join('/');
-                fetchRelatedVideos(folderPath);
+                const sourceEl = videoPlayer.querySelector('source');
+                if (sourceEl) {
+                    const currentVideoPath = sourceEl.src;
+                    const folderPath = currentVideoPath.split('/').slice(0, -1).join('/');
+                    fetchRelatedVideos(folderPath);
+                }
             }
 
             const playPauseButton = document.getElementById('play-pause');

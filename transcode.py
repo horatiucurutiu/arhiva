@@ -8,6 +8,8 @@ import threading
 
 from flask import abort, jsonify, send_file
 
+from utils import safe_join
+
 logger = logging.getLogger(__name__)
 
 DIRECT_PLAY_RULES = {
@@ -148,7 +150,10 @@ def init_transcode(app, config, video_dir):
     manager = TranscodeManager(ffmpeg_bin, ffprobe_bin, cache_dir, int(max_cache_gb * 1024**3))
 
     def resolve(filename):
-        full_path = os.path.join(video_dir, filename)
+        try:
+            full_path = safe_join(video_dir, filename)
+        except ValueError:
+            abort(404)
         if not os.path.isfile(full_path):
             abort(404)
         return full_path

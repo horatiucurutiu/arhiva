@@ -12,6 +12,7 @@ from utils import (
     get_thumbnail_path,
     extract_subtitles,
     generate_thumbnail,
+    safe_join,
 )
 
 
@@ -151,7 +152,10 @@ class VideoServer:
         return jsonify(self.get_directory_structure(self.video_dir))
 
     def play_video(self, filename):
-        full_path = os.path.join(self.video_dir, filename)
+        try:
+            full_path = safe_join(self.video_dir, filename)
+        except ValueError:
+            abort(404)
         if not os.path.isfile(full_path):
             abort(404)
 
@@ -189,18 +193,28 @@ class VideoServer:
 
     def serve_file(self, filename):
         try:
-            return send_file(os.path.join(self.video_dir, filename))
+            full_path = safe_join(self.video_dir, filename)
+        except ValueError:
+            abort(404)
+        try:
+            return send_file(full_path)
         except FileNotFoundError:
             abort(404)
 
     def serve_cached_subtitle(self, filename):
-        full_path = os.path.join(self.subtitle_cache_dir, filename)
+        try:
+            full_path = safe_join(self.subtitle_cache_dir, filename)
+        except ValueError:
+            abort(404)
         if os.path.isfile(full_path):
             return send_file(full_path)
         abort(404)
 
     def serve_thumbnail(self, filename):
-        full_path = os.path.join(self.video_dir, urllib.parse.unquote_plus(filename))
+        try:
+            full_path = safe_join(self.video_dir, urllib.parse.unquote_plus(filename))
+        except ValueError:
+            abort(404)
         thumbnail_path = get_thumbnail_path(full_path, self.thumbnail_dir)
         thumbnail_path = self.executor.submit(
             generate_thumbnail, full_path, thumbnail_path
@@ -214,7 +228,10 @@ class VideoServer:
         folder = urllib.parse.unquote(request.args.get("folder", ""))
         if folder.startswith(self.config.get("Server", "BASE_URL")):
             folder = folder[len(self.config.get("Server", "BASE_URL")) :]
-        folder_path = os.path.join(self.video_dir, folder)
+        try:
+            folder_path = safe_join(self.video_dir, folder)
+        except ValueError:
+            abort(404)
         related_videos = []
 
         if os.path.isdir(folder_path):
