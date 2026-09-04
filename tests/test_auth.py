@@ -8,6 +8,7 @@ def test_login_page_accessible_without_session(client):
     response = client.get("/login")
     assert response.status_code == 200
     assert b"NUMA FILM ARCHIVE" in response.data
+    assert b"numa-film-logo.png" in response.data
 
 
 def test_login_with_correct_credentials_grants_access(client):
