@@ -11,7 +11,7 @@ def create_app(config_path="config.ini"):
     logging.basicConfig(level=logging.CRITICAL)  # Only show critical logs
 
     # Initialize cache
-    cache = Cache(app, config={"CACHE_TYPE": "null"})
+    cache = Cache(app, config={"CACHE_TYPE": "NullCache"})
 
     # Initialize VideoServer
     try:
@@ -19,6 +19,10 @@ def create_app(config_path="config.ini"):
     except Exception as e:
         logging.error(f"Failed to initialize VideoServer: {e}")
         raise
+
+    from auth import init_auth
+
+    init_auth(app, video_server.config)
 
     return app, video_server
 
