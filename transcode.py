@@ -76,10 +76,39 @@ class TranscodeManager:
     def cache_path(self, source_path: str) -> str:
         return os.path.join(self.cache_dir, self._cache_key(source_path) + ".mp4")
 
+    def _set_status(self, key: str, source_path: str, status: str) -> None:
+        """Record a job's terminal status, recreating the entry if it was dropped.
+
+        Assigning into self._jobs[key] directly would raise KeyError (killing the
+        single worker thread, and with it every later transcode) if the entry had
+        been removed while the job was running.
+        """
+        with self._lock:
+            job = self._jobs.setdefault(key, {"source": source_path})
+            job["status"] = status
+
+    def _drop_stale_ready(self, key: str, source_path: str) -> None:
+        """Forget a "ready" job whose cached file has since been evicted.
+
+        _evict_if_needed() deletes files from the cache directory without
+        touching _jobs, so a job left at "ready" would otherwise pin the
+        manager forever: status() would keep reporting "ready" for a file that
+        no longer exists, and enqueue() would never re-queue a fresh transcode.
+        """
+        with self._lock:
+            job = self._jobs.get(key)
+            if (
+                job
+                and job["status"] == "ready"
+                and not os.path.isfile(self.cache_path(source_path))
+            ):
+                del self._jobs[key]
+
     def status(self, source_path: str) -> str:
         if os.path.isfile(self.cache_path(source_path)):
             return "ready"
         key = self._cache_key(source_path)
+        self._drop_stale_ready(key, source_path)
         with self._lock:
             job = self._jobs.get(key)
         return job["status"] if job else "not_started"
@@ -88,6 +117,7 @@ class TranscodeManager:
         if os.path.isfile(self.cache_path(source_path)):
             return "ready"
         key = self._cache_key(source_path)
+        self._drop_stale_ready(key, source_path)
         with self._lock:
             existing = self._jobs.get(key)
             if existing:
@@ -112,13 +142,11 @@ class TranscodeManager:
                     check=True, capture_output=True, timeout=3600,
                 )
                 os.replace(tmp_dest, dest)
-                with self._lock:
-                    self._jobs[key]["status"] = "ready"
+                self._set_status(key, source_path, "ready")
                 self._evict_if_needed()
             except Exception as e:
                 logger.error(f"Transcode failed for {source_path}: {e}")
-                with self._lock:
-                    self._jobs[key]["status"] = "error"
+                self._set_status(key, source_path, "error")
                 if os.path.exists(tmp_dest):
                     os.remove(tmp_dest)
 

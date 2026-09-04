@@ -1,15 +1,17 @@
-import shutil
+import os
 import subprocess
-
-import pytest
 
 from transcode import is_browser_compatible, probe_streams
 
-FFMPEG = shutil.which("ffmpeg") or "ffmpeg"
-FFPROBE = shutil.which("ffprobe") or "ffprobe"
+# Use the vendored ffmpeg/ffprobe (the same binaries production points at via
+# config.ini's FFMPEG_BIN/FFPROBE_BIN), resolved from this file's own location
+# so the tests do not depend on the working directory or on the system PATH.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FFMPEG = os.path.join(_REPO_ROOT, "vendor", "ffmpeg", "ffmpeg")
+FFPROBE = os.path.join(_REPO_ROOT, "vendor", "ffmpeg", "ffprobe")
 
 
-def make_sample(tmp_path, filename, video_codec="libopenh264", audio_codec=None):
+def make_sample(tmp_path, filename, video_codec="libx264", audio_codec=None):
     path = tmp_path / filename
     cmd = [
         FFMPEG, "-hide_banner", "-y",

@@ -14,7 +14,8 @@
             <video id="video-player" controls
                    data-start-url="{{ url_for('start_transcode', filename=video_path) }}"
                    data-status-url="{{ url_for('transcode_status', filename=video_path) }}"
-                   data-proxy-url="{{ url_for('video_proxy', filename=video_path) }}">
+                   data-proxy-url="{{ url_for('video_proxy', filename=video_path) }}"
+                   data-original-url="{{ url_for('serve_file', filename=video_path) }}">
                 {% if not needs_transcode %}
                 <source src="{{ url_for('serve_file', filename=video_path) }}" type="video/mp4">
                 {% endif %}
@@ -100,7 +101,18 @@
             const statusEl = document.getElementById('transcode-status');
             if (!statusEl || !videoPlayer) return;
 
-            fetch(videoPlayer.dataset.startUrl, { method: 'POST' }).then(poll);
+            function showError(message) {
+                statusEl.textContent = message + ' ';
+                const link = document.createElement('a');
+                link.href = videoPlayer.dataset.originalUrl;
+                link.textContent = 'Download the original file';
+                link.setAttribute('download', '');
+                statusEl.appendChild(link);
+            }
+
+            fetch(videoPlayer.dataset.startUrl, { method: 'POST' })
+                .then(poll)
+                .catch(() => showError('Could not start preparing this video.'));
 
             function poll() {
                 fetch(videoPlayer.dataset.statusUrl)
@@ -114,11 +126,12 @@
                             videoPlayer.appendChild(source);
                             videoPlayer.load();
                         } else if (data.status === 'error') {
-                            statusEl.textContent = 'Could not prepare this video for playback.';
+                            showError('Could not prepare this video for playback.');
                         } else {
                             setTimeout(poll, 2000);
                         }
-                    });
+                    })
+                    .catch(() => showError('Could not check transcode status.'));
             }
         });
     </script>

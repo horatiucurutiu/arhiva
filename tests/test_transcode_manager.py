@@ -20,7 +20,7 @@ def make_sample(tmp_path, filename="incompatible.avi"):
         [
             FFMPEG, "-hide_banner", "-y",
             "-f", "lavfi", "-i", "testsrc=size=160x120:rate=1:duration=1",
-            "-c:v", "libopenh264", str(path),
+            "-c:v", "libx264", str(path),
         ],
         check=True, capture_output=True,
     )
@@ -82,3 +82,50 @@ def test_cache_eviction_removes_oldest_when_over_cap(tmp_path):
 
     assert not old.exists()
     assert new.exists()
+
+
+def test_status_recovers_after_cached_file_is_evicted(tmp_path):
+    """An evicted cache file must not leave the job pinned at "ready"."""
+    sample = make_sample(tmp_path)
+    manager = TranscodeManager(FFMPEG, FFPROBE, str(tmp_path / "cache"), max_cache_bytes=10**9)
+
+    manager.enqueue(str(sample))
+    assert wait_for_status(manager, sample, "ready") == "ready"
+
+    cache_path = manager.cache_path(str(sample))
+    os.remove(cache_path)  # simulate _evict_if_needed() reclaiming the proxy
+
+    assert manager.status(str(sample)) == "not_started"
+
+
+def test_enqueue_retranscodes_after_cached_file_is_evicted(tmp_path):
+    sample = make_sample(tmp_path)
+    manager = TranscodeManager(FFMPEG, FFPROBE, str(tmp_path / "cache"), max_cache_bytes=10**9)
+
+    manager.enqueue(str(sample))
+    assert wait_for_status(manager, sample, "ready") == "ready"
+
+    cache_path = manager.cache_path(str(sample))
+    os.remove(cache_path)
+
+    assert manager.enqueue(str(sample)) == "processing"
+    assert wait_for_status(manager, sample, "ready") == "ready"
+    assert os.path.isfile(cache_path)
+
+
+def test_evict_if_needed_lets_a_ready_job_be_retranscoded(tmp_path):
+    """Same recovery path, driven through the real eviction routine."""
+    sample = make_sample(tmp_path)
+    manager = TranscodeManager(FFMPEG, FFPROBE, str(tmp_path / "cache"), max_cache_bytes=10**9)
+
+    manager.enqueue(str(sample))
+    assert wait_for_status(manager, sample, "ready") == "ready"
+
+    manager.max_cache_bytes = 0
+    manager._evict_if_needed()
+    assert not os.path.isfile(manager.cache_path(str(sample)))
+
+    assert manager.status(str(sample)) == "not_started"
+    manager.max_cache_bytes = 10**9
+    manager.enqueue(str(sample))
+    assert wait_for_status(manager, sample, "ready") == "ready"

@@ -1,7 +1,11 @@
+import os
 import subprocess
-import shutil
 
-FFMPEG = shutil.which("ffmpeg") or "ffmpeg"
+# Use the vendored ffmpeg (the same binary production points at via
+# config.ini's FFMPEG_BIN), resolved from this file's own location so the tests
+# do not depend on the working directory or on the system PATH.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FFMPEG = os.path.join(_REPO_ROOT, "vendor", "ffmpeg", "ffmpeg")
 
 
 def make_incompatible_video(video_dir, filename="clip.avi"):
@@ -10,7 +14,7 @@ def make_incompatible_video(video_dir, filename="clip.avi"):
         [
             FFMPEG, "-hide_banner", "-y",
             "-f", "lavfi", "-i", "testsrc=size=160x120:rate=1:duration=1",
-            "-c:v", "libopenh264", str(path),
+            "-c:v", "libx264", str(path),
         ],
         check=True, capture_output=True,
     )
@@ -30,6 +34,21 @@ def test_play_video_marks_incompatible_file_as_needing_transcode(client, app_and
 
     assert response.status_code == 200
     assert b"transcode-status" in response.data
+
+
+def test_play_video_exposes_a_download_original_fallback(client, app_and_server):
+    """Spec: a failed transcode must offer a "download original" link, and a
+    failed status poll must surface an error instead of silently stopping."""
+    _app, _server, video_dir = app_and_server
+    make_incompatible_video(video_dir)
+    login(client)
+
+    response = client.get("/play/clip.avi")
+    body = response.data.decode()
+
+    assert 'data-original-url="/video/clip.avi"' in body
+    assert "Download the original file" in body
+    assert body.count(".catch(") >= 2
 
 
 def test_transcode_status_starts_not_started(client, app_and_server):
