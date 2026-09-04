@@ -12,6 +12,7 @@ from utils import (
     get_thumbnail_path,
     extract_subtitles,
     generate_thumbnail,
+    safe_join,
 )
 
 
@@ -49,6 +50,9 @@ class VideoServer:
         self.app.add_url_rule(
             "/api/related-videos", "api_related_videos", self.api_related_videos
         )
+        self.app.add_url_rule(
+            "/subtitle-cache/<path:filename>", "serve_cached_subtitle", self.serve_cached_subtitle
+        )
 
     def _ensure_thumbnail_dir(self):
         try:
@@ -67,6 +71,12 @@ class VideoServer:
             "Paths",
             "THUMBNAIL_DIR",
             fallback=os.path.join(self.video_dir, ".thumbnails"),
+        )
+
+    @property
+    def subtitle_cache_dir(self) -> str:
+        return os.path.join(
+            self.config.get("Transcode", "CACHE_DIR", fallback=self.thumbnail_dir), "subtitles"
         )
 
     @property
@@ -93,7 +103,7 @@ class VideoServer:
         def _get_directory_structure(path: str) -> List[Dict[str, str]]:
             structure = []
             try:
-                for root, dirs, files in os.walk(path):
+                for root, dirs, files in os.walk(path, followlinks=True):
                     if not self.show_hidden:
                         dirs[:] = [d for d in dirs if not d.startswith(".")]
 
@@ -142,47 +152,75 @@ class VideoServer:
         return jsonify(self.get_directory_structure(self.video_dir))
 
     def play_video(self, filename):
-        full_path = os.path.join(self.video_dir, filename)
-        if os.path.isfile(full_path):
-            if filename.lower().endswith(".mkv"):
-                subtitle_path = self.executor.submit(
-                    extract_subtitles, full_path
-                ).result()
-            else:
-                subtitle_path = os.path.splitext(full_path)[0] + ".vtt"
-
-            subs = (
-                [
-                    os.path.join(
-                        os.path.dirname(filename), os.path.basename(subtitle_path)
-                    )
-                ]
-                if subtitle_path and os.path.isfile(subtitle_path)
-                else []
-            )
-            thumbnail_path = get_thumbnail_path(filename, self.thumbnail_dir)
-
-            return render_template(
-                "video.html",
-                video_path=filename,
-                subs=subs,
-                video_title=os.path.basename(filename),
-                thumbnail_path=thumbnail_path,
-            )
-        else:
+        try:
+            full_path = safe_join(self.video_dir, filename)
+        except ValueError:
             abort(404)
+        if not os.path.isfile(full_path):
+            abort(404)
+
+        is_compatible_fn = self.app.config.get("IS_COMPATIBLE_FN")
+        needs_transcode = not is_compatible_fn(full_path) if is_compatible_fn else False
+
+        subs = []
+        if filename.lower().endswith(".mkv"):
+            subtitle_path = self.executor.submit(
+                extract_subtitles,
+                full_path,
+                self.video_dir,
+                self.subtitle_cache_dir,
+                self.config.get("Transcode", "FFMPEG_BIN", fallback="ffmpeg"),
+            ).result()
+            if subtitle_path and os.path.isfile(subtitle_path):
+                sub_rel_path = os.path.relpath(subtitle_path, self.subtitle_cache_dir)
+                subs = [("serve_cached_subtitle", sub_rel_path)]
+        else:
+            subtitle_path = os.path.splitext(full_path)[0] + ".vtt"
+            if os.path.isfile(subtitle_path):
+                sub_rel_path = os.path.join(os.path.dirname(filename), os.path.basename(subtitle_path))
+                subs = [("serve_file", sub_rel_path)]
+
+        thumbnail_path = get_thumbnail_path(filename, self.thumbnail_dir)
+
+        return render_template(
+            "video.html",
+            video_path=filename,
+            subs=subs,
+            video_title=os.path.basename(filename),
+            thumbnail_path=thumbnail_path,
+            needs_transcode=needs_transcode,
+        )
 
     def serve_file(self, filename):
         try:
-            return send_file(os.path.join(self.video_dir, filename))
+            full_path = safe_join(self.video_dir, filename)
+        except ValueError:
+            abort(404)
+        try:
+            return send_file(full_path)
         except FileNotFoundError:
             abort(404)
 
+    def serve_cached_subtitle(self, filename):
+        try:
+            full_path = safe_join(self.subtitle_cache_dir, filename)
+        except ValueError:
+            abort(404)
+        if os.path.isfile(full_path):
+            return send_file(full_path)
+        abort(404)
+
     def serve_thumbnail(self, filename):
-        full_path = os.path.join(self.video_dir, urllib.parse.unquote_plus(filename))
+        try:
+            full_path = safe_join(self.video_dir, urllib.parse.unquote_plus(filename))
+        except ValueError:
+            abort(404)
         thumbnail_path = get_thumbnail_path(full_path, self.thumbnail_dir)
         thumbnail_path = self.executor.submit(
-            generate_thumbnail, full_path, thumbnail_path
+            generate_thumbnail,
+            full_path,
+            thumbnail_path,
+            self.config.get("Transcode", "FFMPEG_BIN", fallback="ffmpeg"),
         ).result()
         if thumbnail_path:
             return send_file(thumbnail_path)
@@ -193,7 +231,10 @@ class VideoServer:
         folder = urllib.parse.unquote(request.args.get("folder", ""))
         if folder.startswith(self.config.get("Server", "BASE_URL")):
             folder = folder[len(self.config.get("Server", "BASE_URL")) :]
-        folder_path = os.path.join(self.video_dir, folder)
+        try:
+            folder_path = safe_join(self.video_dir, folder)
+        except ValueError:
+            abort(404)
         related_videos = []
 
         if os.path.isdir(folder_path):

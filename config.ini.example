@@ -1,5 +1,6 @@
 [Paths]
-VIDEO_DIR = /path/to/video/folder
+VIDEO_DIR = roots
+THUMBNAIL_DIR = /mnt/SSD2/arhiva_cache/thumbnails
 
 [Subtitles]
 EXTENSIONS = .vtt,.stt
@@ -8,9 +9,25 @@ EXTENSIONS = .vtt,.stt
 EXTENSIONS = .ts,.mp4,.avi,.mov,.mkv,.webm
 
 [Server]
-HOST = 0.0.0.0
-PORT = 5000
-BASE_URL = http://127.0.0.1:5000/video/
+HOST = 127.0.0.1
+PORT = 8093
+BASE_URL = /video/
 
 [Display]
 SHOW_HIDDEN = false
+
+[Auth]
+; Run `python scripts/set_password.py` to fill in USERNAME/PASSWORD_HASH/SECRET_KEY.
+; Never edit PASSWORD_HASH by hand.
+USERNAME =
+PASSWORD_HASH =
+SECRET_KEY =
+; Set to false only for local testing over plain HTTP. Must be true in production
+; (the app is only ever reached over HTTPS via the Apache reverse proxy).
+SECURE_COOKIES = true
+
+[Transcode]
+CACHE_DIR = /mnt/SSD2/arhiva_cache
+MAX_CACHE_GB = 350
+FFMPEG_BIN = vendor/ffmpeg/ffmpeg
+FFPROBE_BIN = vendor/ffmpeg/ffprobe
