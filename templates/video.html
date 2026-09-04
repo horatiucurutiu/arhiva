@@ -11,13 +11,21 @@
 <body>
     <div class="video-player-container">
         <div class="video-wrapper">
-            <video id="video-player" controls>
+            <video id="video-player" controls
+                   data-start-url="{{ url_for('start_transcode', filename=video_path) }}"
+                   data-status-url="{{ url_for('transcode_status', filename=video_path) }}"
+                   data-proxy-url="{{ url_for('video_proxy', filename=video_path) }}">
+                {% if not needs_transcode %}
                 <source src="{{ url_for('serve_file', filename=video_path) }}" type="video/mp4">
+                {% endif %}
                 Your browser does not support the video tag.
-                {% for sub in subs %}
-                <track src="{{ url_for('serve_file', filename=sub) }}" kind="subtitles" srclang="en" label="English" default>
+                {% for endpoint, sub_path in subs %}
+                <track src="{{ url_for(endpoint, filename=sub_path) }}" kind="subtitles" srclang="en" label="English" default>
                 {% endfor %}
             </video>
+            {% if needs_transcode %}
+            <p id="transcode-status">Preparing video for playback&hellip;</p>
+            {% endif %}
             <div class="video-controls">
                 <button id="play-pause" title="Play/Pause">▶️</button>
                 <button id="rewind" title="Rewind 10 Seconds">⏪</button>
@@ -81,6 +89,34 @@
             const currentVideoPath = "{{ video_path }}";
             const folderPath = currentVideoPath.substring(0, currentVideoPath.lastIndexOf('/'));
             fetchRelatedVideos(folderPath);
+        });
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const videoPlayer = document.getElementById('video-player');
+            const statusEl = document.getElementById('transcode-status');
+            if (!statusEl || !videoPlayer) return;
+
+            fetch(videoPlayer.dataset.startUrl, { method: 'POST' }).then(poll);
+
+            function poll() {
+                fetch(videoPlayer.dataset.statusUrl)
+                    .then((r) => r.json())
+                    .then((data) => {
+                        if (data.status === 'ready') {
+                            statusEl.remove();
+                            const source = document.createElement('source');
+                            source.src = videoPlayer.dataset.proxyUrl;
+                            source.type = 'video/mp4';
+                            videoPlayer.appendChild(source);
+                            videoPlayer.load();
+                        } else if (data.status === 'error') {
+                            statusEl.textContent = 'Could not prepare this video for playback.';
+                        } else {
+                            setTimeout(poll, 2000);
+                        }
+                    });
+            }
         });
     </script>
 </body>

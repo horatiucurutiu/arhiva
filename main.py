@@ -24,6 +24,10 @@ def create_app(config_path="config.ini"):
 
     init_auth(app, video_server.config)
 
+    from transcode import init_transcode
+
+    init_transcode(app, video_server.config, video_server.video_dir)
+
     return app, video_server
 
 

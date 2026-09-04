@@ -46,21 +46,14 @@ def get_thumbnail_path(video_path: str, thumbnail_dir: str) -> str:
         return ""
 
 
-def extract_subtitles(video_path: str) -> Optional[str]:
-    output_path = os.path.splitext(video_path)[0] + ".vtt"
+def extract_subtitles(video_path: str, video_dir: str, subtitle_dir: str, ffmpeg_bin: str = "ffmpeg") -> Optional[str]:
+    rel_path = os.path.relpath(video_path, video_dir)
+    output_path = os.path.join(subtitle_dir, os.path.splitext(rel_path)[0] + ".vtt")
     if not os.path.exists(output_path):
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
         try:
             subprocess.run(
-                [
-                    "ffmpeg",
-                    "-hwaccel",
-                    "auto",
-                    "-i",
-                    video_path,
-                    "-map",
-                    "0:s:0",
-                    output_path,
-                ],
+                [ffmpeg_bin, "-hwaccel", "auto", "-i", video_path, "-map", "0:s:0", output_path],
                 check=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,

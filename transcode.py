@@ -6,6 +6,8 @@ import queue
 import subprocess
 import threading
 
+from flask import abort, jsonify, send_file
+
 logger = logging.getLogger(__name__)
 
 DIRECT_PLAY_RULES = {
@@ -136,3 +138,37 @@ class TranscodeManager:
                 break
             os.remove(full)
             total -= size
+
+
+def init_transcode(app, config, video_dir):
+    ffmpeg_bin = config.get("Transcode", "FFMPEG_BIN", fallback="ffmpeg")
+    ffprobe_bin = config.get("Transcode", "FFPROBE_BIN", fallback="ffprobe")
+    cache_dir = os.path.join(config.get("Transcode", "CACHE_DIR"), "transcoded")
+    max_cache_gb = config.getfloat("Transcode", "MAX_CACHE_GB", fallback=350)
+    manager = TranscodeManager(ffmpeg_bin, ffprobe_bin, cache_dir, int(max_cache_gb * 1024**3))
+
+    def resolve(filename):
+        full_path = os.path.join(video_dir, filename)
+        if not os.path.isfile(full_path):
+            abort(404)
+        return full_path
+
+    @app.route("/transcode/<path:filename>", methods=["POST"])
+    def start_transcode(filename):
+        status = manager.enqueue(resolve(filename))
+        return jsonify({"status": status})
+
+    @app.route("/transcode-status/<path:filename>")
+    def transcode_status(filename):
+        return jsonify({"status": manager.status(resolve(filename))})
+
+    @app.route("/video-proxy/<path:filename>")
+    def video_proxy(filename):
+        cache_path = manager.cache_path(resolve(filename))
+        if not os.path.isfile(cache_path):
+            abort(404)
+        return send_file(cache_path)
+
+    app.config["IS_COMPATIBLE_FN"] = lambda path: is_browser_compatible(ffprobe_bin, path)
+    app.config["TRANSCODE_MANAGER"] = manager
+    return manager
