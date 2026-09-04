@@ -4,3 +4,5 @@ Werkzeug
 gunicorn
 pillow
 ffmpeg-python
+bcrypt
+pytest
