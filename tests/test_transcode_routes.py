@@ -46,7 +46,7 @@ def test_play_video_exposes_a_download_original_fallback(client, app_and_server)
     response = client.get("/play/clip.avi")
     body = response.data.decode()
 
-    assert 'data-original-url="/video/clip.avi"' in body
+    assert 'data-original-url="/download/clip.avi"' in body
     assert "Download the original file" in body
     assert body.count(".catch(") >= 2
 

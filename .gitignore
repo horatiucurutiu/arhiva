@@ -9,3 +9,4 @@ __pycache__/
 vendor/
 roots/*
 !roots/.gitkeep
+.claude/

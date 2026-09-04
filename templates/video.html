@@ -15,7 +15,7 @@
                    data-start-url="{{ url_for('start_transcode', filename=video_path) }}"
                    data-status-url="{{ url_for('transcode_status', filename=video_path) }}"
                    data-proxy-url="{{ url_for('video_proxy', filename=video_path) }}"
-                   data-original-url="{{ url_for('serve_file', filename=video_path) }}">
+                   data-original-url="{{ url_for('download_file', filename=video_path) }}">
                 {% if not needs_transcode %}
                 <source src="{{ url_for('serve_file', filename=video_path) }}" type="video/mp4">
                 {% endif %}
@@ -32,6 +32,7 @@
                 <button id="rewind" title="Rewind 10 Seconds">⏪</button>
                 <button id="forward" title="Forward 10 Seconds">⏩</button>
                 <button id="fullscreen" title="Fullscreen">⛶</button>
+                <a href="{{ url_for('download_file', filename=video_path) }}" download title="Download original file">⬇</a>
             </div>
         </div>
         <a href="{{ url_for('index') }}" class="back-link">Back to Video List</a>

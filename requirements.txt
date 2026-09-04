@@ -6,3 +6,4 @@ pillow
 ffmpeg-python
 bcrypt
 pytest
+zipstream-ng

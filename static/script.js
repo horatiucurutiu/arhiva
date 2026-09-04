@@ -71,12 +71,40 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Use the actual thumbnail for video files
                 iconPath = item.thumbnail ? `/thumbnail/${encodeURIComponent(item.path)}` : '/static/image/video.png';
             }
-            itemElement.innerHTML = `
-                <img src="${iconPath}" alt="${item.type} icon" class="item-thumbnail">
-                <span>${item.name}</span>
-            `;
+            const downloadUrl = item.type === 'folder'
+                ? `/download-folder/${encodeURIComponent(item.path)}`
+                : `/download/${encodeURIComponent(item.path)}`;
+            const downloadTitle = item.type === 'folder'
+                ? 'Download this folder (zip, includes subfolders)'
+                : 'Download this file';
+
+            // Built via DOM APIs rather than innerHTML: item.name/item.path are
+            // real filenames from the archive, not sanitized, so interpolating
+            // them into an HTML string would be an XSS risk if a filename ever
+            // contained markup characters.
+            const thumbnailImg = document.createElement('img');
+            thumbnailImg.src = iconPath;
+            thumbnailImg.alt = `${item.type} icon`;
+            thumbnailImg.className = 'item-thumbnail';
+
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = item.name;
+
+            const downloadLink = document.createElement('a');
+            downloadLink.href = downloadUrl;
+            downloadLink.className = 'download-button';
+            downloadLink.title = downloadTitle;
+            downloadLink.setAttribute('download', '');
+            downloadLink.textContent = '⬇';
+            downloadLink.addEventListener('click', (event) => event.stopPropagation());
+
+            itemElement.appendChild(thumbnailImg);
+            itemElement.appendChild(nameSpan);
+            itemElement.appendChild(downloadLink);
             if (item.type === 'folder') {
                 itemElement.addEventListener('click', () => openFolder(item));
+            } else if (item.type === 'image') {
+                itemElement.addEventListener('click', () => viewImage(item));
             } else {
                 itemElement.addEventListener('click', () => playVideo(item));
             }
@@ -164,6 +192,12 @@ document.addEventListener('DOMContentLoaded', function() {
     function playVideo(video) {
         window.location.href = `/play/${video.path}`;
     }
+
+    function viewImage(image) {
+        // Images can't go through the video player (/play/) — serve the raw
+        // file directly and let the browser render it natively.
+        window.location.href = `/video/${image.path}`;
+    }
 });
 
 function fetchRelatedVideos(folderPath) {
@@ -195,10 +229,14 @@ function renderRelatedVideos(videos) {
         const videoElement = document.createElement('div');
         videoElement.className = 'grid-item';
         const thumbnailPath = video.thumbnail ? `/thumbnail/${encodeURIComponent(video.path)}` : '/static/image/video.png';
-        videoElement.innerHTML = `
-            <img src="${thumbnailPath}" alt="Video thumbnail" class="video-thumbnail">
-            <span>${video.name}</span>
-        `;
+        const thumbnailImg = document.createElement('img');
+        thumbnailImg.src = thumbnailPath;
+        thumbnailImg.alt = 'Video thumbnail';
+        thumbnailImg.className = 'video-thumbnail';
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = video.name;
+        videoElement.appendChild(thumbnailImg);
+        videoElement.appendChild(nameSpan);
         videoElement.addEventListener('click', () => {
             console.log('Clicked on related video:', video.path);
             window.location.href = `/play/${encodeURIComponent(video.path)}`;

@@ -8,10 +8,10 @@ from flask import render_template, send_file, abort, jsonify, request
 import urllib.parse
 from utils import (
     get_ip_addresses,
-    directory_contains_supported_files,
     get_thumbnail_path,
     extract_subtitles,
     generate_thumbnail,
+    generate_image_thumbnail,
     safe_join,
 )
 
@@ -87,6 +87,18 @@ class VideoServer:
     def show_hidden(self) -> bool:
         return self.config.getboolean("Display", "SHOW_HIDDEN")
 
+    @property
+    def image_extensions(self):
+        # Guard against endswith(("",)) matching every filename when the config
+        # key is absent/empty — an empty tuple correctly matches nothing instead.
+        raw = self.config.get("Images", "EXTENSIONS", fallback="")
+        return tuple(ext.strip() for ext in raw.split(",") if ext.strip())
+
+    @property
+    def exclude_dir_names(self):
+        raw = self.config.get("Display", "EXCLUDE_DIRS", fallback="")
+        return {name.strip().lower() for name in raw.split(",") if name.strip()}
+
     def run(self):
         host = self.config.get("Server", "HOST")
         port = self.config.getint("Server", "PORT")
@@ -102,21 +114,49 @@ class VideoServer:
         @self.cache.memoize(300)
         def _get_directory_structure(path: str) -> List[Dict[str, str]]:
             structure = []
+            video_extensions = tuple(self.config.get("Videos", "EXTENSIONS").split(","))
+            image_extensions = self.image_extensions
+            exclude_names = self.exclude_dir_names
+            walked = []
             try:
+                # Single top-down pass: this is the only place directories can be
+                # pruned from actual disk traversal (mutating `dirs` in-place only
+                # affects walking under topdown=True) — used both for hidden dirs
+                # and for EXCLUDE_DIRS, so an excluded subtree (e.g. an old PC's
+                # full disk backup mixed into a footage archive) costs zero I/O
+                # instead of being walked and then discarded.
                 for root, dirs, files in os.walk(path, followlinks=True):
                     if not self.show_hidden:
                         dirs[:] = [d for d in dirs if not d.startswith(".")]
+                        files = [f for f in files if not f.startswith(".")]
+                    dirs[:] = [d for d in dirs if d.lower() not in exclude_names]
+                    walked.append((root, list(dirs), files))
+
+                # Second pass over the already-walked (in-memory) results, in
+                # reverse: reversing a top-down (pre-order) traversal list yields
+                # every directory after all of its descendants, so "does this
+                # subtree contain anything" becomes an O(1) lookup against
+                # already-decided immediate children — no repeat disk I/O, unlike
+                # the original code's per-directory nested os.walk (effectively
+                # O(n^2) and unusable on a real tens-of-thousands-of-files archive).
+                dirs_with_content = set()
+                for root, dirs, files in reversed(walked):
+                    has_video_file = any(f.lower().endswith(video_extensions) for f in files)
+                    has_image_file = any(f.lower().endswith(image_extensions) for f in files)
+                    has_content_subdir = any(
+                        os.path.join(root, d) in dirs_with_content for d in dirs
+                    )
+                    contains_content = has_video_file or has_image_file or has_content_subdir
+
+                    if contains_content:
+                        dirs_with_content.add(root)
 
                     rel_path = os.path.relpath(root, self.video_dir)
 
                     if rel_path != "." and (
                         self.show_hidden or not os.path.basename(root).startswith(".")
                     ):
-                        if directory_contains_supported_files(
-                            root,
-                            self.config.get("Videos", "EXTENSIONS").split(","),
-                            self.show_hidden,
-                        ):
+                        if contains_content:
                             structure.append(
                                 {
                                     "type": "folder",
@@ -126,16 +166,26 @@ class VideoServer:
                             )
 
                     for file in files:
-                        if file.lower().endswith(
-                            tuple(self.config.get("Videos", "EXTENSIONS").split(","))
-                        ):
+                        file_rel_path = os.path.join(rel_path, file)
+                        if file.lower().endswith(video_extensions):
                             structure.append(
                                 {
                                     "type": "file",
                                     "name": file,
-                                    "path": os.path.join(rel_path, file),
+                                    "path": file_rel_path,
                                     "thumbnail": get_thumbnail_path(
-                                        os.path.join(rel_path, file), self.thumbnail_dir
+                                        file_rel_path, self.thumbnail_dir
+                                    ),
+                                }
+                            )
+                        elif file.lower().endswith(image_extensions):
+                            structure.append(
+                                {
+                                    "type": "image",
+                                    "name": file,
+                                    "path": file_rel_path,
+                                    "thumbnail": get_thumbnail_path(
+                                        file_rel_path, self.thumbnail_dir
                                     ),
                                 }
                             )
@@ -216,12 +266,17 @@ class VideoServer:
         except ValueError:
             abort(404)
         thumbnail_path = get_thumbnail_path(full_path, self.thumbnail_dir)
-        thumbnail_path = self.executor.submit(
-            generate_thumbnail,
-            full_path,
-            thumbnail_path,
-            self.config.get("Transcode", "FFMPEG_BIN", fallback="ffmpeg"),
-        ).result()
+        if full_path.lower().endswith(self.image_extensions):
+            thumbnail_path = self.executor.submit(
+                generate_image_thumbnail, full_path, thumbnail_path
+            ).result()
+        else:
+            thumbnail_path = self.executor.submit(
+                generate_thumbnail,
+                full_path,
+                thumbnail_path,
+                self.config.get("Transcode", "FFMPEG_BIN", fallback="ffmpeg"),
+            ).result()
         if thumbnail_path:
             return send_file(thumbnail_path)
         else:

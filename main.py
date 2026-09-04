@@ -14,8 +14,12 @@ def create_app(config_path=DEFAULT_CONFIG_PATH):
     # Configure logging to suppress most logs
     logging.basicConfig(level=logging.CRITICAL)  # Only show critical logs
 
-    # Initialize cache
-    cache = Cache(app, config={"CACHE_TYPE": "NullCache"})
+    # In-memory cache: safe because the deployment runs a single worker process
+    # (see deploy/arhiva.service) — this is what actually makes
+    # VideoServer.get_directory_structure's @cache.memoize(300) do anything.
+    # ("NullCache" is a real Flask-Caching backend whose entire job is to never
+    # cache — using it here silently disabled caching entirely.)
+    cache = Cache(app, config={"CACHE_TYPE": "SimpleCache"})
 
     # Initialize VideoServer
     try:
@@ -31,6 +35,10 @@ def create_app(config_path=DEFAULT_CONFIG_PATH):
     from transcode import init_transcode
 
     init_transcode(app, video_server.config, video_server.video_dir)
+
+    from downloads import init_downloads
+
+    init_downloads(app, video_server.config, video_server.video_dir)
 
     return app, video_server
 

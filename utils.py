@@ -94,6 +94,21 @@ def extract_subtitles(video_path: str, video_dir: str, subtitle_dir: str, ffmpeg
     return output_path
 
 
+def generate_image_thumbnail(image_path: str, thumbnail_path: str) -> Optional[str]:
+    if not os.path.exists(thumbnail_path):
+        try:
+            from PIL import Image
+
+            with Image.open(image_path) as img:
+                img = img.convert("RGB")
+                img.thumbnail((320, 320))
+                img.save(thumbnail_path, "JPEG")
+        except Exception as e:
+            logging.error(f"Error generating image thumbnail: {e}")
+            return None
+    return thumbnail_path
+
+
 def generate_thumbnail(
     video_path: str, thumbnail_path: str, ffmpeg_bin: str = "ffmpeg"
 ) -> Optional[str]:

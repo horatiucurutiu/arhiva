@@ -6,7 +6,10 @@ THUMBNAIL_DIR = /mnt/SSD2/arhiva_cache/thumbnails
 EXTENSIONS = .vtt,.stt
 
 [Videos]
-EXTENSIONS = .ts,.mp4,.avi,.mov,.mkv,.webm
+EXTENSIONS = .ts,.mp4,.avi,.mov,.mkv,.webm,.mpg,.mpeg,.vob,.wmv,.mts,.flv
+
+[Images]
+EXTENSIONS = .jpg,.jpeg,.png,.gif,.bmp
 
 [Server]
 HOST = 127.0.0.1
