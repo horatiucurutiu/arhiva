@@ -34,6 +34,9 @@ def write_credentials(config_path: str, username: str, password: str) -> None:
         config.set("Auth", "SECURE_COOKIES", "true")
     with open(config_path, "w") as f:
         config.write(f)
+    # config.ini now holds SECRET_KEY (which signs session cookies) and the
+    # password hash, so keep it owner-only rather than whatever the umask gave.
+    os.chmod(config_path, 0o600)
 
 
 def main():

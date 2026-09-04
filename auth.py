@@ -1,9 +1,16 @@
+import hmac
 from datetime import timedelta
 
 import bcrypt
 from flask import Blueprint, current_app, redirect, render_template, request, session, url_for
 
 auth_bp = Blueprint("auth", __name__)
+
+# Precomputed once at import (bcrypt hashing is intentionally slow) so that a
+# login attempt with an unknown username still pays the same bcrypt cost as one
+# with the correct username — otherwise the response time leaks whether a given
+# username exists, which the spec explicitly rules out ("no user enumeration").
+_DUMMY_HASH = bcrypt.hashpw(b"dummy-password", bcrypt.gensalt())
 
 
 def init_auth(app, config):
@@ -32,8 +39,17 @@ def login():
         username = request.form.get("username", "")
         password = request.form.get("password", "").encode("utf-8")
         expected_username = current_app.config["AUTH_USERNAME"]
-        expected_hash = current_app.config["AUTH_PASSWORD_HASH"]
-        if username == expected_username and bcrypt.checkpw(password, expected_hash):
+        username_ok = hmac.compare_digest(
+            username.encode("utf-8"), expected_username.encode("utf-8")
+        )
+        # Always run bcrypt.checkpw, even for a wrong username (against a dummy
+        # hash), so the timing of a failed login does not reveal which half of
+        # the credentials was wrong.
+        candidate_hash = (
+            current_app.config["AUTH_PASSWORD_HASH"] if username_ok else _DUMMY_HASH
+        )
+        password_ok = bcrypt.checkpw(password, candidate_hash)
+        if username_ok and password_ok:
             session["logged_in"] = True
             session.permanent = True
             return redirect(url_for("index"))

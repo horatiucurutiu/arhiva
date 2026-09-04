@@ -1,3 +1,46 @@
+# Numa Film Archive (this fork)
+
+This repository is Numa Film's fork of [1999AZZAR/video-browser](https://github.com/1999AZZAR/video-browser),
+adapted into a private archive browser for the studio's film masters. Everything
+below the "Video Browser" heading is the original upstream documentation; this
+section covers what the fork adds.
+
+**What's different**
+
+- **Login gate** — every route is behind a session-cookie login (`auth.py`).
+  Credentials live in `config.ini`'s `[Auth]` section as a bcrypt hash; set them
+  with `./venv/bin/python scripts/set_password.py --username <name>`, which also
+  generates the `SECRET_KEY` used to sign session cookies and locks the file down
+  to mode 600.
+- **On-demand transcoding** — files a browser can't play directly (HEVC, AVI,
+  MKV, …) are detected with `ffprobe` and transcoded to H.264/AAC MP4 in the
+  background by a single-worker job queue (`transcode.py`). The player page polls
+  `/transcode-status/<file>` and switches to `/video-proxy/<file>` when the proxy
+  is ready; the size-capped cache evicts least-recently-used proxies. Configured
+  under `[Transcode]` (`CACHE_DIR`, `MAX_CACHE_GB`, `FFMPEG_BIN`, `FFPROBE_BIN`).
+- **Multi-root browsing** — `VIDEO_DIR` points at `roots/`, a folder of symlinks
+  (`ln -s /mnt/norman-manea roots/norman-manea`), so several NAS mounts appear as
+  one tree. Directory scans follow symlinks, and path validation is deliberately
+  lexical (`utils.safe_join`) so a symlinked root resolves normally while `../`
+  traversal in a URL is still rejected.
+- **Vendored ffmpeg** — `./scripts/install_ffmpeg.sh` installs a full build under
+  `vendor/ffmpeg/`, because the distro package lacks HEVC decode and `libx264`.
+  Point `FFMPEG_BIN`/`FFPROBE_BIN` at it.
+- **Tests** — `./venv/bin/pytest` runs the suite in `tests/` (auth, path
+  traversal, multi-root, transcode).
+
+**Configuration**: copy `config.ini.example` to `config.ini` and fill it in; it
+documents the fork's `[Auth]` and `[Transcode]` sections alongside the upstream
+`[Paths]`/`[Videos]`/`[Server]` ones. `config.ini` is gitignored and holds
+secrets.
+
+**Deployment**: see [`deploy/README.md`](deploy/README.md) — gunicorn under a
+systemd user unit behind Apache with Let's Encrypt. Note that gunicorn must run
+with a single worker process (`-w 1 --threads 4`), since the transcode queue is
+in-process state.
+
+---
+
 # Video Browser
 
 **Video Browser** is a powerful, web-based video management application that provides a seamless way to browse, play, and manage videos stored on a local server. Built with Python's Flask framework, this application integrates features such as dynamic thumbnail generation, subtitle extraction, directory browsing, and video streaming, all through an intuitive web interface.
@@ -144,7 +187,7 @@ To improve performance, the application employs caching mechanisms:
 
 ## Subtitle Extraction
 
-Subtitles are extracted using FFmpeg and served alongside the video files when available. The server checks for external subtitle files with supported extensions (`.srt`, `.vtt`) and extracts embedded subtitles from videos.
+Subtitles are extracted using FFmpeg and served alongside the video files when available. The server checks for external subtitle files with supported extensions (`.srt`, `.vtt`) and extracts embedded subtitles from videos. (In this fork, embedded `.mkv` subtitles are written into a `subtitles/` folder inside the configured `[Transcode] CACHE_DIR` and served from `/subtitle-cache/`, not next to the source file, so the video volumes stay read-only.)
 
 ## Caching Mechanism
 
