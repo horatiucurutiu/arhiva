@@ -217,7 +217,10 @@ class VideoServer:
             abort(404)
         thumbnail_path = get_thumbnail_path(full_path, self.thumbnail_dir)
         thumbnail_path = self.executor.submit(
-            generate_thumbnail, full_path, thumbnail_path
+            generate_thumbnail,
+            full_path,
+            thumbnail_path,
+            self.config.get("Transcode", "FFMPEG_BIN", fallback="ffmpeg"),
         ).result()
         if thumbnail_path:
             return send_file(thumbnail_path)
