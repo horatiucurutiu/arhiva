@@ -40,10 +40,9 @@
 - [ ] **Step 1: Create and activate a project virtualenv, install current deps**
 
 ```bash
-cd /home/numafilm/arhiva
 python3.14 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+./venv/bin/pip install --upgrade pip
+./venv/bin/pip install -r requirements.txt
 ```
 
 Expected: installs cleanly (Flask, Flask-Caching, Werkzeug, gunicorn, pillow, ffmpeg-python).
@@ -54,13 +53,13 @@ Append these two lines to `requirements.txt`:
 
 ```
 bcrypt
-pytest
+./venv/bin/pytest
 ```
 
 - [ ] **Step 3: Install the new dependencies**
 
 ```bash
-pip install bcrypt pytest
+./venv/bin/pip install bcrypt pytest
 ```
 
 - [ ] **Step 4: Create `pytest.ini`**
@@ -145,7 +144,7 @@ roots/*
 - [ ] **Step 8: Verify the harness runs (even with zero tests yet)**
 
 ```bash
-pytest
+./venv/bin/pytest
 ```
 
 Expected: `no tests ran` (or similar) with no import errors — confirms `create_app` import path and fixture setup are wired correctly before any real tests are added.
@@ -355,7 +354,7 @@ Also create `scripts/__init__.py` (empty) so `scripts.set_password` is importabl
 - [ ] **Step 2: Run tests to verify they fail**
 
 ```bash
-pytest tests/test_set_password.py -v
+./venv/bin/pytest tests/test_set_password.py -v
 ```
 
 Expected: `ModuleNotFoundError: No module named 'scripts.set_password'` (or similar import failure).
@@ -427,7 +426,7 @@ if __name__ == "__main__":
 - [ ] **Step 4: Run tests to verify they pass**
 
 ```bash
-pytest tests/test_set_password.py -v
+./venv/bin/pytest tests/test_set_password.py -v
 ```
 
 Expected: 3 passed.
@@ -516,7 +515,7 @@ def test_logout_clears_session(client):
 - [ ] **Step 3: Run tests to verify they fail**
 
 ```bash
-pytest tests/test_auth.py -v
+./venv/bin/pytest tests/test_auth.py -v
 ```
 
 Expected: failures (root currently returns 200 with no redirect — `auth.py` doesn't exist yet).
@@ -585,7 +584,7 @@ In `main.py`, inside `create_app`, right after `video_server = VideoServer(app, 
 - [ ] **Step 6: Run tests to verify they pass**
 
 ```bash
-pytest tests/test_auth.py -v
+./venv/bin/pytest tests/test_auth.py -v
 ```
 
 Expected: 5 passed.
@@ -615,7 +614,7 @@ git commit -m "Add session-cookie login gate protecting all routes"
 
 ```bash
 cp /home/numafilm/projectsend-v2/branding/logo-pe-fundal-inchis.png \
-   /home/numafilm/arhiva/static/image/numa-film-logo.png
+   static/image/numa-film-logo.png
 ```
 
 - [ ] **Step 2: Replace `templates/login.html` with the branded version**
@@ -719,7 +718,7 @@ def test_login_page_accessible_without_session(client):
 - [ ] **Step 5: Run tests to verify they still pass**
 
 ```bash
-pytest tests/test_auth.py -v
+./venv/bin/pytest tests/test_auth.py -v
 ```
 
 Expected: 5 passed.
@@ -727,12 +726,22 @@ Expected: 5 passed.
 - [ ] **Step 6: Manually verify the page renders correctly**
 
 ```bash
-source venv/bin/activate
-python scripts/set_password.py --config /tmp/manual_test_config.ini --username admin
+touch /tmp/manual_test_config.ini
+./venv/bin/python scripts/set_password.py --config /tmp/manual_test_config.ini --username admin
 # (enter a test password when prompted)
 ```
 
-Then start the app pointed at a scratch config and open `http://127.0.0.1:8093/login` in a browser to confirm the logo and dark theme render as expected before moving on. Stop the server (Ctrl+C) once confirmed.
+Then, since `main.py`'s `create_app()` takes an optional `config_path` argument but the `__main__` block calls it with no arguments (hardcoded to `config.ini`), start the app against the scratch config directly via the Python API rather than `python main.py`:
+
+```bash
+./venv/bin/python -c "
+from main import create_app
+app, _ = create_app('/tmp/manual_test_config.ini')
+app.run(host='127.0.0.1', port=8093)
+"
+```
+
+Open `http://127.0.0.1:8093/login` in a browser to confirm the logo and dark theme render as expected before moving on. Stop the server (Ctrl+C) once confirmed, and remove the scratch config: `rm /tmp/manual_test_config.ini`.
 
 - [ ] **Step 7: Commit**
 
@@ -809,7 +818,7 @@ def test_unreadable_file_is_not_compatible(tmp_path):
 - [ ] **Step 2: Run tests to verify they fail**
 
 ```bash
-pytest tests/test_transcode_probe.py -v
+./venv/bin/pytest tests/test_transcode_probe.py -v
 ```
 
 Expected: `ModuleNotFoundError: No module named 'transcode'`.
@@ -870,7 +879,7 @@ def is_browser_compatible(ffprobe_bin: str, path: str) -> bool:
 - [ ] **Step 4: Run tests to verify they pass**
 
 ```bash
-pytest tests/test_transcode_probe.py -v
+./venv/bin/pytest tests/test_transcode_probe.py -v
 ```
 
 Expected: 4 passed.
@@ -985,7 +994,7 @@ def test_cache_eviction_removes_oldest_when_over_cap(tmp_path):
 - [ ] **Step 2: Run tests to verify they fail**
 
 ```bash
-pytest tests/test_transcode_manager.py -v
+./venv/bin/pytest tests/test_transcode_manager.py -v
 ```
 
 Expected: `ImportError: cannot import name 'TranscodeManager' from 'transcode'`.
@@ -1088,7 +1097,7 @@ class TranscodeManager:
 - [ ] **Step 4: Run tests to verify they pass**
 
 ```bash
-pytest tests/test_transcode_manager.py -v
+./venv/bin/pytest tests/test_transcode_manager.py -v
 ```
 
 Expected: 4 passed. (The eviction test calls `manager._evict_if_needed()` directly — acceptable here since it's testing that specific internal policy in isolation; the end-to-end eviction-after-transcode path is covered manually in Task 12.)
@@ -1190,7 +1199,7 @@ def test_transcode_then_video_proxy_serves_file(client, app_and_server):
 - [ ] **Step 2: Run tests to verify they fail**
 
 ```bash
-pytest tests/test_transcode_routes.py -v
+./venv/bin/pytest tests/test_transcode_routes.py -v
 ```
 
 Expected: 404s / failures — routes and `needs_transcode` don't exist yet.
@@ -1400,7 +1409,7 @@ And add this script block before the closing `</body>`, alongside the existing s
 - [ ] **Step 8: Run tests to verify they pass**
 
 ```bash
-pytest tests/test_transcode_routes.py -v
+./venv/bin/pytest tests/test_transcode_routes.py -v
 ```
 
 Expected: 3 passed.
@@ -1408,7 +1417,7 @@ Expected: 3 passed.
 - [ ] **Step 9: Run the full test suite**
 
 ```bash
-pytest -v
+./venv/bin/pytest -v
 ```
 
 Expected: all tests across every task so far pass together (confirms the `services.py`/`utils.py` changes didn't break Tasks 1-8's tests).
@@ -1434,8 +1443,8 @@ git commit -m "Wire on-demand transcoding into playback, redirect subtitle cache
 - [ ] **Step 1: Create the symlink folder placeholder**
 
 ```bash
-mkdir -p /home/numafilm/arhiva/roots
-touch /home/numafilm/arhiva/roots/.gitkeep
+mkdir -p roots
+touch roots/.gitkeep
 ```
 
 - [ ] **Step 2: Write a test proving symlinked roots are browsed**
@@ -1465,7 +1474,7 @@ def test_get_directory_structure_follows_symlinked_roots(tmp_path, app_and_serve
 - [ ] **Step 3: Run the test**
 
 ```bash
-pytest tests/test_multi_root.py -v
+./venv/bin/pytest tests/test_multi_root.py -v
 ```
 
 Expected: passes immediately — `os.walk` (used by `get_directory_structure`) follows symlinks by default, so no code change is needed. This test exists to lock in that behavior so a future dependency bump or refactor can't silently break multi-root browsing.
@@ -1574,7 +1583,7 @@ git commit -m "Add systemd service and Apache vhost templates for deployment"
 - [ ] **Step 1: Run the full automated test suite one final time**
 
 ```bash
-cd /home/numafilm/arhiva && source venv/bin/activate && pytest -v
+./venv/bin/pytest -v
 ```
 
 Expected: all tests pass.
