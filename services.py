@@ -103,7 +103,7 @@ class VideoServer:
         def _get_directory_structure(path: str) -> List[Dict[str, str]]:
             structure = []
             try:
-                for root, dirs, files in os.walk(path):
+                for root, dirs, files in os.walk(path, followlinks=True):
                     if not self.show_hidden:
                         dirs[:] = [d for d in dirs if not d.startswith(".")]
 
