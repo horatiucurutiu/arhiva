@@ -1,3 +1,12 @@
+// Encode a "/"-separated path for use in a URL path, without turning the
+// separators themselves into %2F: Apache's reverse proxy in front of this
+// app rejects encoded slashes in the request path with a 404 by default
+// (AllowEncodedSlashes Off), and %2F was never the correct way to represent
+// a real path separator anyway — only the segment names need escaping.
+function encodePath(path) {
+    return path.split('/').map(encodeURIComponent).join('/');
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const fileStructure = document.getElementById('file-structure');
     const searchInput = document.getElementById('search-input');
@@ -69,11 +78,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 iconPath = '/static/image/folder.png';
             } else {
                 // Use the actual thumbnail for video files
-                iconPath = item.thumbnail ? `/thumbnail/${encodeURIComponent(item.path)}` : '/static/image/video.png';
+                iconPath = item.thumbnail ? `/thumbnail/${encodePath(item.path)}` : '/static/image/video.png';
             }
             const downloadUrl = item.type === 'folder'
-                ? `/download-folder/${encodeURIComponent(item.path)}`
-                : `/download/${encodeURIComponent(item.path)}`;
+                ? `/download-folder/${encodePath(item.path)}`
+                : `/download/${encodePath(item.path)}`;
             const downloadTitle = item.type === 'folder'
                 ? 'Download this folder (zip, includes subfolders)'
                 : 'Download this file';
@@ -190,13 +199,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function playVideo(video) {
-        window.location.href = `/play/${video.path}`;
+        window.location.href = `/play/${encodePath(video.path)}`;
     }
 
     function viewImage(image) {
         // Images can't go through the video player (/play/) — serve the raw
         // file directly and let the browser render it natively.
-        window.location.href = `/video/${image.path}`;
+        window.location.href = `/video/${encodePath(image.path)}`;
     }
 });
 
@@ -228,7 +237,7 @@ function renderRelatedVideos(videos) {
     videos.forEach(video => {
         const videoElement = document.createElement('div');
         videoElement.className = 'grid-item';
-        const thumbnailPath = video.thumbnail ? `/thumbnail/${encodeURIComponent(video.path)}` : '/static/image/video.png';
+        const thumbnailPath = video.thumbnail ? `/thumbnail/${encodePath(video.path)}` : '/static/image/video.png';
         const thumbnailImg = document.createElement('img');
         thumbnailImg.src = thumbnailPath;
         thumbnailImg.alt = 'Video thumbnail';
@@ -239,7 +248,7 @@ function renderRelatedVideos(videos) {
         videoElement.appendChild(nameSpan);
         videoElement.addEventListener('click', () => {
             console.log('Clicked on related video:', video.path);
-            window.location.href = `/play/${encodeURIComponent(video.path)}`;
+            window.location.href = `/play/${encodePath(video.path)}`;
         });
         relatedVideosContainer.appendChild(videoElement);
     });
