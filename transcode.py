@@ -1,7 +1,10 @@
+import hashlib
 import json
 import logging
 import os
+import queue
 import subprocess
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -46,3 +49,90 @@ def is_browser_compatible(ffprobe_bin: str, path: str) -> bool:
     if streams["video_codec"] not in rule["video"]:
         return False
     return streams["audio_codec"] in rule["audio"]
+
+
+class TranscodeManager:
+    def __init__(self, ffmpeg_bin: str, ffprobe_bin: str, cache_dir: str, max_cache_bytes: int):
+        self.ffmpeg_bin = ffmpeg_bin
+        self.ffprobe_bin = ffprobe_bin
+        self.cache_dir = cache_dir
+        self.max_cache_bytes = max_cache_bytes
+        os.makedirs(cache_dir, exist_ok=True)
+        self._jobs = {}
+        self._lock = threading.Lock()
+        self._queue = queue.Queue()
+        self._worker = threading.Thread(target=self._worker_loop, daemon=True)
+        self._worker.start()
+
+    def _cache_key(self, source_path: str) -> str:
+        mtime = os.path.getmtime(source_path)
+        raw = f"{os.path.abspath(source_path)}:{mtime}"
+        return hashlib.sha1(raw.encode("utf-8")).hexdigest()
+
+    def cache_path(self, source_path: str) -> str:
+        return os.path.join(self.cache_dir, self._cache_key(source_path) + ".mp4")
+
+    def status(self, source_path: str) -> str:
+        if os.path.isfile(self.cache_path(source_path)):
+            return "ready"
+        key = self._cache_key(source_path)
+        with self._lock:
+            job = self._jobs.get(key)
+        return job["status"] if job else "not_started"
+
+    def enqueue(self, source_path: str) -> str:
+        if os.path.isfile(self.cache_path(source_path)):
+            return "ready"
+        key = self._cache_key(source_path)
+        with self._lock:
+            existing = self._jobs.get(key)
+            if existing:
+                return existing["status"]
+            self._jobs[key] = {"status": "processing", "source": source_path}
+        self._queue.put(source_path)
+        return "processing"
+
+    def _worker_loop(self):
+        while True:
+            source_path = self._queue.get()
+            key = self._cache_key(source_path)
+            dest = self.cache_path(source_path)
+            tmp_dest = dest + ".tmp"
+            try:
+                subprocess.run(
+                    [
+                        self.ffmpeg_bin, "-y", "-hwaccel", "auto", "-i", source_path,
+                        "-c:v", "libopenh264",
+                        "-c:a", "aac", "-movflags", "+faststart", "-f", "mp4", tmp_dest,
+                    ],
+                    check=True, capture_output=True, timeout=3600,
+                )
+                os.replace(tmp_dest, dest)
+                with self._lock:
+                    self._jobs[key]["status"] = "ready"
+                self._evict_if_needed()
+            except Exception as e:
+                logger.error(f"Transcode failed for {source_path}: {e}")
+                with self._lock:
+                    self._jobs[key]["status"] = "error"
+                if os.path.exists(tmp_dest):
+                    os.remove(tmp_dest)
+
+    def _evict_if_needed(self):
+        entries = []
+        total = 0
+        for name in os.listdir(self.cache_dir):
+            full = os.path.join(self.cache_dir, name)
+            if not os.path.isfile(full):
+                continue
+            st = os.stat(full)
+            total += st.st_size
+            entries.append((st.st_atime, st.st_size, full))
+        if total <= self.max_cache_bytes:
+            return
+        entries.sort()
+        for _atime, size, full in entries:
+            if total <= self.max_cache_bytes:
+                break
+            os.remove(full)
+            total -= size
