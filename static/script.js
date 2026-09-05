@@ -74,11 +74,14 @@ document.addEventListener('DOMContentLoaded', function() {
             const itemElement = document.createElement('div');
             itemElement.className = currentView === 'grid' ? 'grid-item' : 'list-item';
             let iconPath;
+            let isIcon;
             if (item.type === 'folder') {
                 iconPath = '/static/image/folder.png';
+                isIcon = true;
             } else {
-                // Use the actual thumbnail for video files
+                // Use the actual thumbnail for video/image files
                 iconPath = item.thumbnail ? `/thumbnail/${encodePath(item.path)}` : '/static/image/video.png';
+                isIcon = !item.thumbnail;
             }
             const downloadUrl = item.type === 'folder'
                 ? `/download-folder/${encodePath(item.path)}`
@@ -94,7 +97,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const thumbnailImg = document.createElement('img');
             thumbnailImg.src = iconPath;
             thumbnailImg.alt = `${item.type} icon`;
-            thumbnailImg.className = 'item-thumbnail';
+            thumbnailImg.className = isIcon ? 'item-thumbnail icon-image' : 'item-thumbnail';
 
             const nameSpan = document.createElement('span');
             nameSpan.textContent = item.name;
@@ -241,7 +244,7 @@ function renderRelatedVideos(videos) {
         const thumbnailImg = document.createElement('img');
         thumbnailImg.src = thumbnailPath;
         thumbnailImg.alt = 'Video thumbnail';
-        thumbnailImg.className = 'video-thumbnail';
+        thumbnailImg.className = video.thumbnail ? 'video-thumbnail' : 'video-thumbnail icon-image';
         const nameSpan = document.createElement('span');
         nameSpan.textContent = video.name;
         videoElement.appendChild(thumbnailImg);
