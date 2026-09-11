@@ -4,7 +4,7 @@ Run once, in order, on the server:
 
 1. `cd ~/arhiva && python3.14 -m venv venv && source venv/bin/activate && pip install -r requirements.txt`
 2. `./scripts/install_ffmpeg.sh`
-3. `cp config.ini.example config.ini` and fill in `[Paths] VIDEO_DIR = /home/numafilm/arhiva/roots` (absolute path).
+3. `cp config.ini.example config.ini` and fill in `[Paths] VIDEO_DIR = /home/numafilm/PROJECTS/arhiva/roots` (absolute path).
 4. `ln -s /mnt/norman-manea ~/arhiva/roots/norman-manea` (repeat per mount you want browsable).
 5. `./venv/bin/python scripts/set_password.py --username <your-username>` — sets the login password.
 6. `mkdir -p ~/.config/systemd/user && cp deploy/arhiva.service ~/.config/systemd/user/`

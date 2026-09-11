@@ -607,13 +607,13 @@ git commit -m "Add session-cookie login gate protecting all routes"
 - Modify: `tests/test_auth.py` (one more assertion)
 
 **Interfaces:**
-- Consumes: `logo-pe-fundal-inchis.png` from `/home/numafilm/projectsend-v2/branding/` (existing Numa Film brand asset, dark-background variant, 1080x165 PNG).
+- Consumes: `logo-pe-fundal-inchis.png` from `/home/numafilm/PROJECTS/projectsend-v2/branding/` (existing Numa Film brand asset, dark-background variant, 1080x165 PNG).
 - No new Python interfaces — this is template/CSS/asset only.
 
 - [ ] **Step 1: Copy the logo asset into the app's static folder**
 
 ```bash
-cp /home/numafilm/projectsend-v2/branding/logo-pe-fundal-inchis.png \
+cp /home/numafilm/PROJECTS/projectsend-v2/branding/logo-pe-fundal-inchis.png \
    static/image/numa-film-logo.png
 ```
 
@@ -1506,8 +1506,8 @@ Description=Numa Film Archive video browser
 After=network.target
 
 [Service]
-WorkingDirectory=/home/numafilm/arhiva
-ExecStart=/home/numafilm/arhiva/venv/bin/gunicorn -w 2 -b 127.0.0.1:8093 main:app
+WorkingDirectory=/home/numafilm/PROJECTS/arhiva
+ExecStart=/home/numafilm/PROJECTS/arhiva/venv/bin/gunicorn -w 2 -b 127.0.0.1:8093 main:app
 Restart=on-failure
 RestartSec=5
 
@@ -1554,7 +1554,7 @@ Run once, in order, on the server:
 
 1. `cd ~/arhiva && python3.14 -m venv venv && source venv/bin/activate && pip install -r requirements.txt`
 2. `./scripts/install_ffmpeg.sh`
-3. `cp config.ini.example config.ini` and fill in `[Paths] VIDEO_DIR = /home/numafilm/arhiva/roots` (absolute path).
+3. `cp config.ini.example config.ini` and fill in `[Paths] VIDEO_DIR = /home/numafilm/PROJECTS/arhiva/roots` (absolute path).
 4. `ln -s /mnt/norman-manea ~/arhiva/roots/norman-manea` (repeat per mount you want browsable).
 5. `python scripts/set_password.py --username <your-username>` — sets the login password.
 6. `mkdir -p ~/.config/systemd/user && cp deploy/arhiva.service ~/.config/systemd/user/`

@@ -45,7 +45,7 @@ def create_app(config_path=DEFAULT_CONFIG_PATH):
 
 # Module-level WSGI entry point so a WSGI server can import it as `main:app`
 # (see deploy/arhiva.service, which runs `gunicorn ... main:app` from
-# WorkingDirectory=/home/numafilm/arhiva, where config.ini lives).
+# WorkingDirectory=/home/numafilm/PROJECTS/arhiva, where config.ini lives).
 #
 # It is built only when the default config file actually exists in the working
 # directory: the test suite imports `create_app` from this module and calls it

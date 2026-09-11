@@ -3,7 +3,7 @@ Description=Numa Film Archive video browser
 After=network.target
 
 [Service]
-WorkingDirectory=/home/numafilm/arhiva
+WorkingDirectory=/home/numafilm/PROJECTS/arhiva
 # Exactly one worker process on purpose: TranscodeManager keeps its job table,
 # queue and single ffmpeg worker thread in process memory, so a second worker
 # would mean duplicate transcodes racing onto the same cache file and
@@ -12,7 +12,7 @@ WorkingDirectory=/home/numafilm/arhiva
 # ffmpeg/ffprobe (compatibility probe, subtitle extraction, thumbnails) and
 # for large folder-zip downloads, which stream for as long as the client
 # takes to receive them.
-ExecStart=/home/numafilm/arhiva/venv/bin/gunicorn -w 1 --threads 4 --timeout 1800 -b 127.0.0.1:8093 main:app
+ExecStart=/home/numafilm/PROJECTS/arhiva/venv/bin/gunicorn -w 1 --threads 4 --timeout 1800 -b 127.0.0.1:8093 main:app
 Restart=on-failure
 RestartSec=5
 

@@ -146,7 +146,7 @@ back under the cap. Runs synchronously at the end of the transcode job
 
 - **App**: `systemd --user` unit `arhiva.service`, running
   `gunicorn -w 2 -b 127.0.0.1:8093 main:app` (matches `gunicorn` already
-  being a listed dependency), `WorkingDirectory=/home/numafilm/arhiva`,
+  being a listed dependency), `WorkingDirectory=/home/numafilm/PROJECTS/arhiva`,
   `Restart=on-failure`, enabled so it survives reboot (same pattern as
   `casting.service` / `cotatii.service`).
 - **Reverse proxy**: new Apache vhost pair
