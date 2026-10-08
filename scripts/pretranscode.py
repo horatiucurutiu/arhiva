@@ -1,7 +1,8 @@
 """Pre-transcode every non-browser-compatible video into the app's cache.
 
-Uses the app's own cache key (TranscodeManager.cache_path) and ffmpeg arguments,
-so a finished file is picked up by /video-proxy exactly as if a viewer had
+Uses the app's own cache key (TranscodeManager.cache_path) and its ffmpeg
+encode arguments (but CPU decoding, see the ffmpeg call), so a finished file is
+picked up by /video-proxy exactly as if a viewer had
 requested it. Runs one file at a time, outside gunicorn, so the in-process
 queue stays free for real viewers. Resumable: files already cached are skipped,
 and files that failed are recorded and skipped unless --retry-failed.
@@ -95,6 +96,12 @@ def main():
                   logging.StreamHandler()],
         force=True,  # an imported module may already have configured logging
     )
+    # A stopped/killed run leaves its in-progress output behind; the app's own
+    # temp files end in ".mp4.tmp", so only ours are touched here.
+    for name in os.listdir(cache_dir):
+        if name.endswith(".pre.tmp"):
+            os.remove(os.path.join(cache_dir, name))
+            logging.info(f"removed abandoned {name}")
     failed = set()
     if os.path.exists(failed_file) and not args.retry_failed:
         with open(failed_file) as fh:
@@ -144,7 +151,10 @@ def main():
         try:
             subprocess.run(
                 [
-                    ffmpeg_bin, "-y", "-hwaccel", "auto", "-i", path,
+                    # Unlike the app, no "-hwaccel auto": the GPU is shared with
+                    # Ollama at its VRAM limit, and CPU decoding of these sources
+                    # (MPEG-2/MJPEG) is cheap.
+                    ffmpeg_bin, "-y", "-i", path,
                     "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
                     "-c:a", "aac", "-movflags", "+faststart", "-f", "mp4", tmp_dest,
                 ],
