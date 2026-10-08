@@ -112,28 +112,23 @@ def generate_image_thumbnail(image_path: str, thumbnail_path: str) -> Optional[s
 def generate_thumbnail(
     video_path: str, thumbnail_path: str, ffmpeg_bin: str = "ffmpeg"
 ) -> Optional[str]:
-    if not os.path.exists(thumbnail_path):
+    if os.path.exists(thumbnail_path):
+        return thumbnail_path
+    # Grab a frame 5 s in; clips shorter than that have no frame there (ffmpeg
+    # may even exit 0 without writing anything), so fall back to the first frame.
+    for seek in (["-ss", "00:00:05"], []):
         try:
             subprocess.run(
-                [
-                    ffmpeg_bin,
-                    "-hwaccel",
-                    "auto",
-                    "-i",
-                    video_path,
-                    "-ss",
-                    "00:00:05",
-                    "-vframes",
-                    "1",
-                    "-vf",
-                    "scale=320:-1",
-                    thumbnail_path,
-                ],
+                [ffmpeg_bin, "-hwaccel", "auto", "-i", video_path, *seek,
+                 "-vframes", "1", "-vf", "scale=320:-1", thumbnail_path],
                 check=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
         except subprocess.CalledProcessError as e:
             logging.error(f"Error generating thumbnail: {e}")
-            return None
-    return thumbnail_path
+        if os.path.exists(thumbnail_path) and os.path.getsize(thumbnail_path) > 0:
+            return thumbnail_path
+    if os.path.exists(thumbnail_path):
+        os.remove(thumbnail_path)
+    return None

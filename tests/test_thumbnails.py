@@ -56,3 +56,41 @@ def test_serve_thumbnail_generates_a_real_jpeg(client, app_and_server):
 
     assert response.status_code == 200
     assert response.data.startswith(b"\xff\xd8")  # JPEG SOI marker
+
+
+def make_short_video(video_dir, filename, duration):
+    path = video_dir / filename
+    subprocess.run(
+        [
+            FFMPEG, "-hide_banner", "-y",
+            "-f", "lavfi", "-i", f"testsrc=size=160x120:rate=25:duration={duration}",
+            "-c:v", "libx264", str(path),
+        ],
+        check=True, capture_output=True,
+    )
+    return path
+
+
+def test_serve_thumbnail_for_a_clip_shorter_than_the_seek_offset(client, app_and_server):
+    """Clips of 5 s or less have no frame at 00:00:05; the thumbnail must still
+    be generated (81 of the archive's videos were 404/500 before)."""
+    _app, _server, video_dir = app_and_server
+    make_short_video(video_dir, "short.mp4", 2.5)
+    login(client)
+
+    response = client.get("/thumbnail/short.mp4")
+
+    assert response.status_code == 200
+    assert response.data.startswith(b"\xff\xd8")
+
+
+def test_generate_thumbnail_returns_none_when_ffmpeg_writes_nothing(tmp_path):
+    """ffmpeg can exit 0 without writing a frame; returning the missing path made
+    send_file raise a 500 instead of a clean 404."""
+    from utils import generate_thumbnail
+
+    source = tmp_path / "clip.mp4"
+    source.write_bytes(b"")
+    thumb = tmp_path / "thumb.jpg"
+
+    assert generate_thumbnail(str(source), str(thumb), ffmpeg_bin="true") is None
